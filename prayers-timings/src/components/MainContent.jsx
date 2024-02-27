@@ -8,8 +8,13 @@ import Select from "@mui/material/Select";
 import { FormControl, InputLabel, MenuItem } from "@mui/material";
 import axios from "axios";
 import { useState, useEffect } from "react";
+import moment from "moment";
+import "moment/dist/locale/ar-dz";
+moment.locale("ar");
 
 export default function MainContent() {
+  const [nextPrayerIndex, setNextPrayerIndex] = useState(2);
+
   const [timings, setTimings] = useState({
     Fajr: "04:49",
     Dhuhr: "11:52",
@@ -18,10 +23,16 @@ export default function MainContent() {
     Isha: "19:08",
   });
 
+  const [remainingTime, setRemainingTime] = useState("");
+
   const [selectedCity, setSelectedCity] = useState({
     displayName: "مكة المكرمة",
     apiName: "Makkah al Mukarramah",
   });
+
+  const [today, setToday] = useState("");
+
+  // const [timer, setTimer] = useState(10);
 
   const avilableCities = [
     {
@@ -38,6 +49,13 @@ export default function MainContent() {
     },
   ];
 
+  const prayersArray = [
+    { key: "Fajr", displayName: "الفجر" },
+    { key: "Dhuhr", displayName: "الظهر" },
+    { key: "Asr", displayName: "العصر" },
+    { key: "Maghrib", displayName: "المغرب" },
+    { key: "Isha", displayName: "العشاء" },
+  ];
   const getTimings = async () => {
     const response = await axios.get(
       `https://api.aladhan.com/v1/timingsByCity?country=SA&city=${selectedCity.apiName}`
@@ -45,11 +63,91 @@ export default function MainContent() {
     console.log("this data is: ", response.data.data.timings);
     setTimings(response.data.data.timings);
   };
+
   useEffect(() => {
     console.log("calling the api", selectedCity);
     getTimings();
   }, [selectedCity]);
 
+  useEffect(() => {
+    let interval = setInterval(() => {
+      // setTimer((t) => {
+      //   return t - 1;
+      // });
+      setupCountDownTimer();
+    }, 1000);
+    const t = moment();
+    setToday(t.format("MMM Do YYYY | hh:mm"));
+    console.log("the time is: ", t.format("Y"));
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, [timings]);
+
+  const setupCountDownTimer = () => {
+    //determine the current time
+    const currentMoment = moment();
+
+    //determine the next prayer
+    let prayerIndex = 2;
+
+    if (
+      currentMoment.isAfter(moment(timings["Fajr"], "hh:mm")) &&
+      currentMoment.isBefore(moment(timings["Dhuhr"], "hh:mm"))
+    ) {
+      prayerIndex = 1;
+    } else if (
+      currentMoment.isAfter(moment(timings["Dhuhr"], "hh:mm")) &&
+      currentMoment.isBefore(moment(timings["Asr"], "hh:mm"))
+    ) {
+      prayerIndex = 2;
+    } else if (
+      currentMoment.isAfter(moment(timings["Asr"], "hh:mm")) &&
+      currentMoment.isBefore(moment(timings["Maghrib"], "hh:mm"))
+    ) {
+      prayerIndex = 3;
+    } else if (
+      currentMoment.isAfter(moment(timings["Maghrib"], "hh:mm")) &&
+      currentMoment.isBefore(moment(timings["Isha"], "hh:mm"))
+    ) {
+      prayerIndex = 4;
+    } else {
+      prayerIndex = 0;
+    }
+
+    setNextPrayerIndex(prayerIndex);
+
+    // now after knowing what the next prayer is, we can setup the countdown timer by getting the prayer's time.
+    const nextPrayerObject = prayersArray[prayerIndex];
+    const nextPrayerTime = timings[nextPrayerObject.key];
+    const nextPrayerTimeMoment = moment(nextPrayerTime, "hh:mm");
+
+    let remainingTime = moment(nextPrayerTime, "hh:mm").diff(currentMoment);
+
+    if (remainingTime < 0) {
+      const midnightDiff = moment("23:59:59", "hh:mm:ss").diff(currentMoment);
+      const midNight = moment("00:00:00", "hh:mm:ss");
+      const fajrToMidnightDiff = nextPrayerTimeMoment.diff(midNight);
+
+      const totalDiffernce = midnightDiff + fajrToMidnightDiff;
+
+      remainingTime = totalDiffernce;
+    }
+    console.log(remainingTime);
+
+    const durationRemainingTime = moment.duration(remainingTime);
+
+    setRemainingTime(
+      `${durationRemainingTime.seconds()} : ${durationRemainingTime.minutes()} : ${durationRemainingTime.hours()}`
+    );
+    console.log(
+      "duration issss ",
+      durationRemainingTime.hours(),
+      durationRemainingTime.minutes(),
+      durationRemainingTime.seconds()
+    );
+  };
   const handleCityChange = (event) => {
     const cityObject = avilableCities.find((city) => {
       return city.apiName == event.target.value;
@@ -65,15 +163,15 @@ export default function MainContent() {
       <Grid container>
         <Grid xs={6}>
           <div>
-            <h2>سبتمبر 4:30 2023 9 </h2>
+            <h2> {today} </h2>
             <h1>{selectedCity.displayName} </h1>
           </div>
         </Grid>
 
         <Grid xs={6}>
           <div>
-            <h2>متبقي حتى صلاة العصر </h2>
-            <h1>00:43:12</h1>
+            <h2>متبقي حتى صلاة {prayersArray[nextPrayerIndex].displayName} </h2>
+            <h1>{remainingTime}</h1>
           </div>
         </Grid>
       </Grid>
@@ -147,11 +245,9 @@ export default function MainContent() {
   );
 }
 
-
-
 //note
-  /* if we don't want to use map we can use this */
-  /* <MenuItem
+/* if we don't want to use map we can use this */
+/* <MenuItem
               value={{
                 displayName: "مكة المكرمة",
                 apiName: "Makkah al Mukarramah",
